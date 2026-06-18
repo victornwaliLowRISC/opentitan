@@ -73,23 +73,32 @@ module otbn_mai_assert_fpv
   // Assert that the reserved bits of the MAI status register are always zero
   `ASSERT(MaiStatusRsvdBitsZero_A, ispr_mai_status_rdata_o[31:2] == 0)
 
+  // Assert that the reserved bits of the MAI control register are always zero
+  `ASSERT(MaiCtrlRsvdBitsZero_A, ispr_mai_ctrl_rdata_o[31:6] == 0)
+
+  // Assert that the read value of the start bit of the MAI control register is always zero
+  `ASSERT(MaiCtrlStartBitReadZero_A, ispr_mai_ctrl_rdata_o[0] == 0)
+
   // Error Handling Assertions //
   // 
   // TODO: For the following assertions, should we be checking for $rose(mai_software_error_o) instead?
   // Assert that an OTBN software error is raised when a MAI operation is started while the MAI is busy
-  `ASSERT(SwErrorFromStartWhileBusy, ispr_mai_ctrl_wr_i && ispr_mai_ctrl_wdata_i[0] == 1'b1 && mai_busy |=> mai_software_error_o == 1'b1)
+  `ASSERT(SwErrorFromStartWhileBusy_A, ispr_mai_ctrl_wr_i && ispr_mai_ctrl_wdata_i[0] == 1'b1 && mai_busy |=> mai_software_error_o == 1'b1)
 
   // Assert that an OTBN software error is raised when a MAI operation is started with an invalid operation value
   `ASSERT(SwErrorInvldOpVals_A, ispr_mai_ctrl_wr_i && mai_operation != 5'd11 && mai_operation != 5'd16 && mai_operation != 5'd23 && mai_operation != 5'd12 |=> mai_software_error_o == 1'b1)
 
   // Assert that an OTBN software error is raised when a MAI operation is set while the MAI is busy - TODO: Is this assertion checking the right thing? For when operation field is written to while MAI is busy?
-  `ASSERT(SwErrorFromOpWrWhileBusy, ispr_mai_ctrl_wr_i && mai_operation != 5'd0 && mai_busy == 1'b1 |=> mai_software_error_o == 1'b1)
+  `ASSERT(SwErrorFromOpWrWhileBusy_A, ispr_mai_ctrl_wr_i && mai_operation != 5'd0 && mai_busy == 1'b1 |=> mai_software_error_o == 1'b1)
 
-  // Assert that an OTBN software error is raised when a MAI operation is raised
+  // Assert that an OTBN software error is raised
   // when a write to MAI_INx_Sy is detected when the MAI is not ready
 
-  `ASSERT(SwErrorFromInWeWhileNotReady, (ispr_mai_in0_s0_wr_i || ispr_mai_in0_s1_wr_i || ispr_mai_in1_s0_wr_i || ispr_mai_in1_s1_wr_i) && !mai_ready |=> mai_software_error_o == 1'b1)
+  `ASSERT(SwErrorFromInsWrWhileNotReady_A, (ispr_mai_in0_s0_wr_i || ispr_mai_in0_s1_wr_i || ispr_mai_in1_s0_wr_i || ispr_mai_in1_s1_wr_i) && !mai_ready |=> mai_software_error_o == 1'b1)
   
+  // Assert that an accelerator must eventually finish a MAI operation (i.e., if MAI is busy, it must eventually become not busy)
+  // TODO: the accelerators have fixed latency, so later this assertion can be changed to be bounded by the max latency
+  `ASSERT(AccelMustFinish_A, mai_busy |=> s_eventually(!mai_busy))
   // TODO: Include error handling assertions for the other error signals (mai_reg_intg_violation_err_o and mai_state_err_o) when they are raised
 
 
@@ -103,31 +112,34 @@ module otbn_mai_assert_fpv
   // `COVER(name, prop, clk, rst)
 
   // Cover that the MAI status register indicates busy
-  `COVER(mai_status_is_busy, mai_busy, clk_i, !rst_ni)
+  `COVER(mai_status_is_busy_C, mai_busy, clk_i, !rst_ni)
 
   // Cover that the MAI status register indicates not busy
-  `COVER(mai_status_is_not_busy, !mai_busy, clk_i, !rst_ni)
+  `COVER(mai_status_is_not_busy_C, !mai_busy, clk_i, !rst_ni)
+
+  // Cover when the accelerator has finished a MAI operation (i.e., the MAI is busy and then becomes not busy)
+  `COVER(accel_finished_C, $fell(mai_busy), clk_i, !rst_ni)
 
   // Cover that the MAI status register indicates ready
-  `COVER(mai_status_is_ready, mai_ready, clk_i, !rst_ni)
+  `COVER(mai_status_is_ready_C, mai_ready, clk_i, !rst_ni)
 
   // Cover that the MAI status register indicates not ready
-  `COVER(mai_status_is_not_ready, !mai_ready, clk_i, !rst_ni)
+  `COVER(mai_status_is_not_ready_C, !mai_ready, clk_i, !rst_ni)
 
   // Cover that the MAI status register indicates busy and ready at the same time
-  `COVER(mai_status_is_busy_and_ready, mai_busy && mai_ready, clk_i, !rst_ni)
+  `COVER(mai_status_is_busy_and_ready_C, mai_busy && mai_ready, clk_i, !rst_ni)
 
   // Cover that a MAI software error is raised
   // TODO: Should this be $rose(mai_software_error_o) instead?
-  `COVER(mai_sw_err_seen, mai_software_error_o, clk_i, !rst_ni)
+  `COVER(mai_sw_err_seen_C, mai_software_error_o, clk_i, !rst_ni)
   
   // Cover that a MAI register integrity violation error is raised
   // TODO: Should this be $rose(mai_reg_intg_violation_err_o) instead?
-  `COVER(mai_reg_intg_violation_seen, mai_reg_intg_violation_err_o, clk_i, !rst_ni)
+  `COVER(mai_reg_intg_violation_seen_C, mai_reg_intg_violation_err_o, clk_i, !rst_ni)
 
   // Cover that a MAI state error is raised
   // TODO: Should this be $rose(mai_state_err_o) instead?
-  `COVER(mai_state_err_seen, mai_state_err_o, clk_i, !rst_ni)
+  `COVER(mai_state_err_seen_C, mai_state_err_o, clk_i, !rst_ni)
 
 
 endmodule : otbn_mai_assert_fpv
